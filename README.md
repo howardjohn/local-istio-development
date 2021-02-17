@@ -102,3 +102,128 @@ gateway-local() {
 }
 gateway-local
 ```
+
+TIP: go can utilize caches better when not using `go run`, and when compiling multiple binaries at once. This can be utilized to reduce the time to run:
+```shell
+alias build-local='go build -o ./out/linux_amd64 ./pilot/cmd/pilot-agent ./pilot/cmd/pilot-discovery'
+alias istiod-local='build-local && ./out/linux_amd64/pilot-discovery discovery
+```
+
+## Remote Istiod, local proxy
+
+Connecting a local proxy to a remote Istiod can be done pretty simply by using `port-forward`:
+
+```shell
+kubectl port-forward -n istio-system svc/istiod 15012
+```
+
+Then running the same commands as above to run the proxy locally.
+
+## Local Istiod, remote proxy
+
+This may require following [Enable forwarding from Docker containers to the outside world(https://docs.docker.com/network/bridge/#enable-forwarding-from-docker-containers-to-the-outside-world)first.
+
+To have proxies running the cluster connect to our local Istio, we can replace the `Endpoints` for the `istiod` Service to point to our locally running instance.
+
+```shell
+use-local-pilot() {
+  ip=$(/sbin/ip route | awk '/docker0/ { print $9 }')
+  kubectl -n istio-system delete svc istiod
+  kubectl -n istio-system delete endpoints istiod
+  cat <<EOF | kubectl apply -f -
+apiVersion: v1
+kind: Service
+metadata:
+  name: istiod
+  namespace: istio-system
+spec:
+  ports:
+  - name: grpc-xds
+    port: 15010
+  - name: https-dns
+    port: 15012
+  - name: https-webhook
+    port: 443
+    targetPort: 15017
+  - name: http-monitoring
+    port: 15014
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: istiod
+  namespace: istio-system
+subsets:
+- addresses:
+  - ip: ${ip}
+  ports:
+  - name: https-dns
+    port: 15012
+    protocol: TCP
+  - name: grpc-xds
+    port: 15010
+    protocol: TCP
+  - name: https-webhook
+    port: 15017
+    protocol: TCP
+  - name: http-monitoring
+    port: 15014
+    protocol: TCP
+
+EOF
+}
+```
+
+This may require restarting pods to have them re-establish the connection.
+
+## Plain Envoy
+
+To avoid dependency on Istio entirely, we can run Envoy directly with a static configuration. For example, a barebones configuration with no XDS configuration setup:
+```yaml
+admin:
+  access_log_path: "/dev/null"
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 10000
+```
+
+This can then be run with `envoy -c envoy.yaml`.
+
+From the `istio/istio` repository, the `envoy` binary will be stored in `out/linux_amd64/release/envoy` after running `make init`.
+
+See [Envoy examples](https://www.envoyproxy.io/docs/envoy/latest/configuration/overview/examples) for more information on configuring Envoy manually.
+
+## Direct clients
+
+We can also connect directly to Istiod through various clients.
+
+One useful one is [grpcurl](https://github.com/fullstorydev/grpcurl).
+
+```shell
+toJson () {
+        python -c '
+import sys, yaml, json
+yml = list(y for y in yaml.safe_load_all(sys.stdin) if y)
+if len(yml) == 1: yml = yml[0]
+json.dump(yml, sys.stdout, indent=4)
+'
+}
+
+token=$(echo '{"kind":"TokenRequest","apiVersion":"authentication.k8s.io/v1","spec":{"audiences":["istio-ca"], "expirationSeconds":2592000}}' | kubectl create --raw /api/v1/namespaces/istio-system/serviceaccounts/istio-ingressgateway-service-account/token -f - | jq -j '.status.token')
+request=$(cat request.yaml | toJson)
+echo "${request}" | grpcurl -d @ -insecure -rpc-header "authorization: Bearer $token" localhost:15012 envoy.service.discovery.v3.AggregatedDiscoveryService/StreamAggregatedResources
+```
+
+Where `request.yaml` is a `DiscoveryRequest` object, for example:
+```yaml
+node:
+  id: router~10.244.0.36~foo.istio-system~istio-system.svc.cluster.local
+  metadata:
+    CONFIG_NAMESPACE: istio-system
+typeUrl: type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.Secret
+resourceNames:
+- kubernetes://sds-credential
+```
+
+[pilot-load](https://github.com/howardjohn/pilot-load) is another similar tool that is specialized for Istiod.

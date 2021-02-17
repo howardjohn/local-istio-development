@@ -1,5 +1,8 @@
 # local-istio-development
-Scripts and documentation for developing Istio locally
+
+Scripts and documentation for developing Istio locally. This contains supplemental information to my talk at IstioCon: https://events.istio.io/istiocon-2021/sessions/local-istio-development/.
+
+For the slides from the talk, see [slides.pdf](slides.pdf).
 
 ## Fully Cloud
 

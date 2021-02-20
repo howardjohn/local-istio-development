@@ -76,6 +76,8 @@ proxy-local-bootstrap() {
 proxy-local-bootstrap
 ```
 
+If you use `kind` and are getting `ResoureNotFound` errors, your cluster might need to be [set up](https://kind.sigs.k8s.io/docs/user/configuration/#getting-started) with a `--config` flag pointing to [`prow/config/trustworthy-jwt.yaml`](https://github.com/istio/istio/blob/master/prow/config/trustworthy-jwt.yaml). 
+
 This can then be run with:
 ```shell
 PROXY_CONFIG="$(< ~/kube/local/proxyconfig.yaml envsubst)" go run ./pilot/cmd/pilot-agent proxy sidecar

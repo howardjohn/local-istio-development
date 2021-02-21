@@ -80,7 +80,7 @@ If you use `kind` and are getting `ResoureNotFound` errors, your cluster might n
 
 This can then be run with:
 ```shell
-PROXY_CONFIG="$(< ~/kube/local/proxyconfig.yaml envsubst)" go run ./pilot/cmd/pilot-agent proxy sidecar
+PROXY_CONFIG="$(< ~/kube/local/proxy-config.yaml envsubst)" go run ./pilot/cmd/pilot-agent proxy sidecar
 ```
 
 This will run a proxy for an arbitrary connection in the `default` namespace. This may not exactly mirror a real proxy, which is associated with a pod which may impact the configuration generated.

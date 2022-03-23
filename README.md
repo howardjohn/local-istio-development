@@ -126,7 +126,7 @@ Then running the same commands as above to run the proxy locally.
 
 ## Local Istiod, remote proxy
 
-This may require following [Enable forwarding from Docker containers to the outside world(https://docs.docker.com/network/bridge/#enable-forwarding-from-docker-containers-to-the-outside-world)first.
+This may require following [Enable forwarding from Docker containers to the outside world](https://docs.docker.com/network/bridge/#enable-forwarding-from-docker-containers-to-the-outside-world) first.
 
 To have proxies running the cluster connect to our local Istio, we can replace the `Endpoints` for the `istiod` Service to point to our locally running instance.
 
